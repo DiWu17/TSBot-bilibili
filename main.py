@@ -113,7 +113,7 @@ def download_bilibili_audio_list(bv_numbers: list, save_path: str, m3u_path: str
                 print(f"音频已保存至: {audio_file_path}")
 
                 # 添加到 m3u 条目
-                absulute_path = os.path.abspath(save_path)
+                absulute_path = os.path.abspath(save_path).replace("\\", "/")
                 m3u_entries.append(f"#EXTINF:{duration},{title}")
                 m3u_entries.append(f"{absulute_path}/{title}.mp3")
 
