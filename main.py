@@ -113,9 +113,9 @@ def download_bilibili_audio_list(bv_numbers: list, save_path: str, m3u_path: str
                 print(f"音频已保存至: {audio_file_path}")
 
                 # 添加到 m3u 条目
-                relative_path = os.path.relpath(save_path, os.path.dirname(m3u_path))
+                absulute_path = os.path.abspath(save_path)
                 m3u_entries.append(f"#EXTINF:{duration},{title}")
-                m3u_entries.append(f"{relative_path}/{title}.mp3")
+                m3u_entries.append(f"{absulute_path}/{title}.mp3")
 
             except Exception as e:
                 print(f"BV{bv_number} 下载失败: {str(e)}，跳过")
@@ -135,7 +135,7 @@ if __name__ == "__main__":
     cookie = None
 
     # BV 号列表
-    bv_list = ["BV1zhRqYUEq2", "BV1XM4m1y7QB", "BV1Ti421a7r8", "BV17X4y1Q7ar", "BV1nv411t7MP", "BV1e94y1x7U5"]
+    bv_list = ["BV1zhRqYUEq2", "BV1XM4m1y7QB", "BV1ajAKeTEGN", "BV1LLQLYzEci", "BV1NRPie2Exp","BV1Ti421a7r8", "BV17X4y1Q7ar", "BV1nv411t7MP", "BV1e94y1x7U5"]
 
     try:
         download_bilibili_audio_list(
