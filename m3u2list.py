@@ -1,7 +1,7 @@
 import re
 
 
-def convert_m3u_to_txt(m3u_file_path, save_file_path, base_path="D:/Music/"):
+def convert_m3u_to_txt(m3u_file_path, save_file_path, base_path=""):
     list_title = m3u_file_path.split('\\')[-1].split(".")[0]
 
     # print(list_title)

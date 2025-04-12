@@ -149,4 +149,4 @@ if __name__ == "__main__":
         print(f"程序异常: {e}")
 
     convert_file_path = os.path.join("D:/APPs/TS Bot win-x64/bots/default/playlists", "playlist")
-    convert_m3u_to_txt("playlist.m3u", convert_file_path)
+    convert_m3u_to_txt("playlist.m3u", convert_file_path, base_path="")
