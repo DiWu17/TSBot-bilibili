@@ -9,6 +9,7 @@ from selenium.webdriver.chrome.options import Options
 
 from ..config import settings
 from ..utils import get_logger, convert_m3u_to_txt
+from ..utils.cache import DownloadCache
 from .api_client import FavoriteAPIClient
 from .parser import PageParser
 from .navigator import PageNavigator
@@ -30,7 +31,6 @@ class BilibiliDownloader:
         self.chromedriver_path = chromedriver_path or settings.chromedriver_path
         self.driver = None
         self.navigator = None
-        self.audio_downloader = None
     
     def _init_driver(self):
         """初始化浏览器驱动"""
@@ -73,7 +73,6 @@ class BilibiliDownloader:
         if self.driver is None:
             self._init_driver()
             self.navigator = PageNavigator(self.driver)
-            self.audio_downloader = AudioDownloader(self.driver)
     
     def get_cookie(self) -> str:
         """
@@ -156,7 +155,14 @@ class BilibiliDownloader:
         if auto_download and save_path and m3u_path:
             logger.info("=== 开始自动下载音频 ===")
             try:
-                self.download_audio_list(video_list, save_path, m3u_path, cookie, progress_callback)
+                self.download_audio_list(
+                    video_list,
+                    save_path,
+                    m3u_path,
+                    cookie,
+                    progress_callback,
+                    album=favorite_title,
+                )
                 logger.info("=== 自动下载完成 ===")
             except Exception as e:
                 logger.error(f"自动下载失败: {e}")
@@ -264,7 +270,8 @@ class BilibiliDownloader:
         save_path: str, 
         m3u_path: str,
         cookie: Optional[str] = None, 
-        progress_callback: Optional[Callable] = None
+        progress_callback: Optional[Callable] = None,
+        album: Optional[str] = None,
     ) -> None:
         """
         批量下载音频并生成播放列表
@@ -282,13 +289,42 @@ class BilibiliDownloader:
         os.makedirs(save_path, exist_ok=True)
         m3u_entries = ["#EXTM3U"]
         
+        # 加载下载缓存
+        cache = DownloadCache()
+
+        # 使用 API 方式下载，无需浏览器
+        audio_downloader = AudioDownloader(cookie)
+
         total = len(video_list)
         for index, video_info in enumerate(video_list, 1):
             bv_number = video_info.get('bvid')
             title = video_info.get('title', bv_number)  # Fallback to bvid if title is missing
+            invalid = video_info.get('invalid', False)
             
             if not bv_number:
                 logger.warning(f"第 {index}/{total} 个视频信息无效，跳过: {video_info}")
+                continue
+
+            # 先查缓存，本地文件存在则跳过下载
+            cached = cache.lookup(bv_number)
+            if cached:
+                cached_path, cached_title = cached
+                local_title = os.path.splitext(os.path.basename(cached_path))[0]
+                display_title = local_title if invalid else (title or cached_title or bv_number)
+                logger.info(f"[缓存命中] 跳过已下载: {display_title}")
+                audio_downloader.ensure_metadata(
+                    file_path=cached_path,
+                    title=display_title,
+                    artist=video_info.get('artist'),
+                    album=album,
+                    cover_url=video_info.get('cover_url'),
+                    bv_number=None if invalid else bv_number,
+                )
+                abs_path = os.path.abspath(cached_path).replace("\\", "/")
+                m3u_entries.append(f"#EXTINF:0,{display_title}")
+                m3u_entries.append(abs_path)
+                if progress_callback:
+                    progress_callback(index, total, f"已存在: {display_title}")
                 continue
             
             logger.info(f"正在处理第 {index}/{total} 个视频: {title or bv_number}")
@@ -296,19 +332,18 @@ class BilibiliDownloader:
             if progress_callback:
                 progress_callback(index, total, f"正在处理: {title or bv_number}")
             
-            # 确保驱动已初始化
-            self._ensure_driver()
-            
             # 下载音频
-            result = self.audio_downloader.download_audio(
+            result = audio_downloader.download_audio(
                 bv_number=bv_number,
                 save_path=save_path,
-                title=title,  # 如果是None，download_audio会自己获取
-                cookie=cookie
+                title=title,
+                album=album,
             )
             
             if result:
                 downloaded_title, file_path, duration = result
+                # 写入缓存
+                cache.add(bv_number, downloaded_title, file_path)
                 # 添加到播放列表
                 abs_path = os.path.abspath(file_path).replace("\\", "/")
                 m3u_entries.append(f"#EXTINF:{duration},{downloaded_title}")
@@ -388,5 +423,4 @@ class BilibiliDownloader:
             self.driver.quit()
             self.driver = None
             self.navigator = None
-            self.audio_downloader = None
             logger.info("浏览器已关闭")
